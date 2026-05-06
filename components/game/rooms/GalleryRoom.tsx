@@ -257,62 +257,6 @@ function DpadBtn({ label, style, onPress }: { label: string; style: React.CSSPro
   );
 }
 
-function GameboyControls({ onUp, onDown, onA, onB, nearPhoto }: {
-  onUp: () => void; onDown: () => void;
-  onA: () => void; onB: () => void;
-  nearPhoto: boolean;
-}) {
-  return (
-    <div className="sm:hidden" style={{ position: 'absolute', bottom: 12, left: 0, right: 0, zIndex: 30, pointerEvents: 'none' }}>
-      {/* D-pad — right side */}
-      <div style={{ position: 'absolute', right: 20, bottom: 0, width: 108, height: 108, pointerEvents: 'all' }}>
-        <DpadBtn label="▲" onPress={onUp} style={{ top: 0, left: 36 }} />
-        <DpadBtn label="▼" onPress={onDown} style={{ bottom: 0, left: 36 }} />
-        {/* center piece */}
-        <div style={{ position: 'absolute', top: 36, left: 36, width: 36, height: 36, background: '#111', border: '2px solid #333', borderRadius: 4 }} />
-      </div>
-
-      {/* A / B buttons — left side */}
-      <div style={{ position: 'absolute', left: 20, bottom: 8, display: 'flex', gap: 10, pointerEvents: 'all' }}>
-        <button
-          onPointerDown={(e) => { e.preventDefault(); onB(); }}
-          style={{
-            width: 44, height: 44,
-            borderRadius: '50%',
-            background: '#3d1a6e',
-            border: '3px solid #6a3aaa',
-            color: '#ccc',
-            fontFamily: "'Press Start 2P', cursive",
-            fontSize: 8,
-            userSelect: 'none',
-            WebkitUserSelect: 'none',
-            touchAction: 'none',
-          }}
-        >
-          B
-        </button>
-        <button
-          onPointerDown={(e) => { e.preventDefault(); onA(); }}
-          style={{
-            width: 44, height: 44,
-            borderRadius: '50%',
-            background: nearPhoto ? '#8b0000' : '#4a0000',
-            border: `3px solid ${nearPhoto ? '#ff4444' : '#880000'}`,
-            color: nearPhoto ? '#fff' : '#888',
-            fontFamily: "'Press Start 2P', cursive",
-            fontSize: 8,
-            userSelect: 'none',
-            WebkitUserSelect: 'none',
-            touchAction: 'none',
-            boxShadow: nearPhoto ? '0 0 8px rgba(255,50,50,0.6)' : 'none',
-          }}
-        >
-          A
-        </button>
-      </div>
-    </div>
-  );
-}
 
 // ─── Comments modal types ──────────────────────────────────────────────────────
 interface Comment {
@@ -444,7 +388,8 @@ export function GalleryRoom() {
 
   return (
     <>
-      <div ref={containerRef} style={{ position: 'absolute', inset: 0, background: '#5fa65f', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column' }}>
+      <div ref={containerRef} style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#5fa65f', minHeight: 0 }}>
 
         {/* Scrolling tile map */}
         <div
@@ -535,18 +480,73 @@ export function GalleryRoom() {
           {nearPhotoRow !== undefined ? '↑↓ WALK  •  ENTER TO VIEW' : '↑↓ WALK'}
         </div>
 
-        {/* Mobile Gameboy Controls */}
-        <GameboyControls
-          onUp={() => setPlayerRow((r) => Math.max(0, r - 1))}
-          onDown={() => setPlayerRow((r) => Math.min(rows.length - 1, r + 1))}
-          onA={() => {
-            const sr = snapRows.find((r: number) => Math.abs(r - playerRow) <= 1);
-            if (sr !== undefined) { const spec: RowSpec = rows[sr]; if (spec.photo) openModal(spec.img); }
-          }}
-          onB={() => setOpenImg(null)}
-          nearPhoto={nearPhotoRow !== undefined}
-        />
       </div>
+
+      {/* Mobile Gameboy Controls Panel */}
+      <div
+        className="sm:hidden"
+        style={{
+          height: 140,
+          background: 'linear-gradient(to bottom, #1a0a2e, #0d0520)',
+          borderTop: '3px solid #ffd700',
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 24px',
+        }}
+      >
+        {/* D-pad */}
+        <div style={{ position: 'relative', width: 108, height: 108 }}>
+          <DpadBtn label="▲" onPress={() => setPlayerRow((r) => Math.max(0, r - 1))} style={{ top: 0, left: 36 }} />
+          <DpadBtn label="▼" onPress={() => setPlayerRow((r) => Math.min(rows.length - 1, r + 1))} style={{ bottom: 0, left: 36 }} />
+          <div style={{ position: 'absolute', top: 36, left: 36, width: 36, height: 36, background: '#111', border: '2px solid #333', borderRadius: 4 }} />
+        </div>
+
+        {/* Center label */}
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontFamily: "'Press Start 2P', cursive", fontSize: 6, color: '#6a4a8a', lineHeight: 1.6 }}>
+            MEMORY<br />WORLD
+          </div>
+          {nearPhotoRow !== undefined && (
+            <div style={{ fontFamily: "'Press Start 2P', cursive", fontSize: 6, color: '#ffd700', marginTop: 4 }}>
+              A TO VIEW
+            </div>
+          )}
+        </div>
+
+        {/* A / B buttons */}
+        <div style={{ position: 'relative', width: 100, height: 100 }}>
+          <button
+            onPointerDown={(e) => { e.preventDefault(); setOpenImg(null); }}
+            style={{
+              position: 'absolute', top: 0, left: 0,
+              width: 44, height: 44, borderRadius: '50%',
+              background: '#3d1a6e', border: '3px solid #6a3aaa',
+              color: '#ccc', fontFamily: "'Press Start 2P', cursive", fontSize: 8,
+              userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'none',
+            }}
+          >B</button>
+          <button
+            onPointerDown={(e) => {
+              e.preventDefault();
+              const sr = snapRows.find((r: number) => Math.abs(r - playerRow) <= 1);
+              if (sr !== undefined) { const spec: RowSpec = rows[sr]; if (spec.photo) openModal(spec.img); }
+            }}
+            style={{
+              position: 'absolute', bottom: 0, right: 0,
+              width: 44, height: 44, borderRadius: '50%',
+              background: nearPhotoRow !== undefined ? '#8b0000' : '#4a0000',
+              border: `3px solid ${nearPhotoRow !== undefined ? '#ff4444' : '#880000'}`,
+              color: nearPhotoRow !== undefined ? '#fff' : '#888',
+              fontFamily: "'Press Start 2P', cursive", fontSize: 8,
+              userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'none',
+              boxShadow: nearPhotoRow !== undefined ? '0 0 8px rgba(255,50,50,0.6)' : 'none',
+            }}
+          >A</button>
+        </div>
+      </div>
+    </div>
 
       {/* Photo modal */}
       {openImg && (

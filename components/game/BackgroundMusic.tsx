@@ -76,8 +76,6 @@ export function BackgroundMusic() {
     }
   };
 
-  if (!current) return <audio ref={audioRef} onEnded={() => playRandom(tracksRef.current)} />;
-
   const visible = showPopup || expanded;
 
   return (
@@ -85,7 +83,7 @@ export function BackgroundMusic() {
       <audio ref={audioRef} onEnded={() => playRandom(tracksRef.current)} />
 
       {/* Fixed bottom-right widget */}
-      <div
+      {current && <div
         style={{
           position: 'fixed',
           bottom: 72,        // above the room selector bar
@@ -175,7 +173,7 @@ export function BackgroundMusic() {
         >
           {muted ? '🔇' : '🎵'}
         </button>
-      </div>
+      </div>}
     </>
   );
 }
