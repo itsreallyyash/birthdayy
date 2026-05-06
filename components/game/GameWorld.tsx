@@ -8,7 +8,7 @@ const ROOMS: RoomConfig[] = [
   {
     id: 'hub',
     name: 'Main Hub',
-    description: 'Welcome to Memory World',
+    description: 'Welcome to VI X YASH',
     x: 0,
     y: 0,
     width: 20,

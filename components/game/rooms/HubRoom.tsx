@@ -14,14 +14,15 @@ export function HubRoom({ onRoomChange }: HubRoomProps) {
       
       <div className="pixel-card text-center max-w-md relative z-10">
         <h1 style={{ fontFamily: "'Press Start 2P', cursive" }} className="text-2xl text-primary mb-2">
-          MEMORY WORLD
+          VI X YASH
         </h1>
         <div style={{ fontFamily: "'Press Start 2P', cursive" }} className="text-xs text-accent mb-4">
           ★ HUB ★
         </div>
         <p className="text-xs text-foreground mb-6 leading-relaxed">
           Welcome to your personal memory space. Explore rooms to discover conversations,
-          view memories, and listen to music. Use the buttons below to navigate.
+          view memories, and listen to music. I know you dont like surprises but i made this for you.
+          Hope you like it!!
         </p>
 
         <div className="space-y-2 mb-6">

@@ -1,11 +1,11 @@
-# Memory World - Test Results & Fixes
+# VI X YASH - Test Results & Fixes
 
 ## Fixed Issues:
 
 ### 1. ✅ LOGIN NOW WORKS
 - **Fixed**: Button click handler with async/await pattern
 - **Fixed**: Password validation logic (separated user vs admin auth)
-- **Test**: `password: memory2024` → Logs in and redirects to /game
+- **Test**: `password: yellowblue` → Logs in and redirects to /game
 - **Test**: Admin mode with `password123` → Logs in as admin
 
 ### 2. ✅ UI ENHANCEMENTS APPLIED
@@ -32,7 +32,7 @@
 
 ### User Login:
 1. Go to http://localhost:3000
-2. Enter password: `memory2024`
+2. Enter password: `yellowblue`
 3. Click "ENTER WORLD"
 4. Access Chat Room, Gallery, and Jukebox
 

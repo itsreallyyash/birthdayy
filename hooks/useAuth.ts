@@ -64,7 +64,7 @@ export function useAuth() {
     }
 
     // Regular user login
-    const isValid = password === 'memory2024';
+    const isValid = password === 'yellowblue';
     if (isValid) {
       const session = {
         timestamp: Date.now(),

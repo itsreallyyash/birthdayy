@@ -93,7 +93,7 @@ export function LoginForm() {
                 disabled={isLoading}
               />
               <p className="text-xs text-muted mt-2" style={{ fontFamily: "'Press Start 2P', cursive" }}>
-                memory2024
+                yellowblue
               </p>
             </div>
           ) : (
