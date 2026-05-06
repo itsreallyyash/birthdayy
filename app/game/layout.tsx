@@ -1,6 +1,5 @@
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { GameNav } from '@/components/game/GameNav';
-import { BackgroundMusic } from '@/components/game/BackgroundMusic';
 
 export default function GameLayout({
   children,
@@ -12,7 +11,6 @@ export default function GameLayout({
       <div className="pixel-container">
         <GameNav />
         {children}
-        <BackgroundMusic />
       </div>
     </ProtectedRoute>
   );

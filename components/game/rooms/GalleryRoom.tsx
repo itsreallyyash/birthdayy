@@ -234,9 +234,24 @@ function GrassTuft({ col, row }: { col: number; row: number }) {
 
 // ─── Gameboy Mobile Controls ──────────────────────────────────────────────────
 function DpadBtn({ label, style, onPress }: { label: string; style: React.CSSProperties; onPress: () => void }) {
+  const repeatRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+
+  const start = (e: React.PointerEvent) => {
+    e.preventDefault();
+    onPress();
+    repeatRef.current = setInterval(onPress, 120);
+  };
+  const stop = () => {
+    clearInterval(repeatRef.current);
+    repeatRef.current = undefined;
+  };
+
   return (
     <button
-      onPointerDown={(e) => { e.preventDefault(); onPress(); }}
+      onPointerDown={start}
+      onPointerUp={stop}
+      onPointerLeave={stop}
+      onPointerCancel={stop}
       style={{
         position: 'absolute',
         width: 36, height: 36,

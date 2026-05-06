@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { BackgroundMusic } from '@/components/game/BackgroundMusic';
 
 export function GameNav() {
   const router = useRouter();
@@ -22,7 +23,8 @@ export function GameNav() {
         <img src="/sunflower.jpg" alt="" className="w-8 h-8 rounded-full object-cover border-2 border-primary" />
         <div style={{ fontFamily: "'Press Start 2P', cursive" }} className="text-primary text-lg">VI X YASH</div>
       </div>
-      <div className="flex gap-2">
+      <div className="flex gap-2 items-center">
+        <BackgroundMusic />
         {isAdmin && (
           <button
             onClick={handleAdmin}
