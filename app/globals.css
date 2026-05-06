@@ -1,0 +1,124 @@
+@import 'tailwindcss';
+
+:root {
+  --background: #fffef5;
+  --foreground: #2d2d1f;
+  --primary: #ffd700;
+  --secondary: #ffed4e;
+  --accent: #ffb700;
+  --dark: #f5f0e0;
+  --light: #ffffff;
+  --muted: #c9c7b8;
+  --border: #e8e4d0;
+}
+
+@layer base {
+  * {
+    border-color: #e8e4d0;
+  }
+  
+  html {
+    background: #fffef5;
+  }
+
+  body {
+    background: #fffef5;
+    color: #2d2d1f;
+    image-rendering: pixelated;
+    font-family: 'Press Start 2P', cursive;
+  }
+
+  button {
+    transition-property: all;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
+  }
+
+  button:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 2px 2px 0px rgba(0,0,0,0.15), 4px 4px 0px rgba(0,0,0,0.1);
+  }
+
+  button:active {
+    transform: translate(2px, 2px);
+    box-shadow: none;
+  }
+
+  input, textarea, select {
+    border-width: 2px;
+    border-color: #d4cfc0;
+    background: #ffffff;
+    color: #2d2d1f;
+    font-family: 'Press Start 2P', cursive;
+  }
+
+  input:focus, textarea:focus, select:focus {
+    outline: none;
+    ring-width: 2px;
+    ring-color: #ffb700;
+  }
+}
+
+@layer components {
+  .pixel-btn {
+    padding: 0.5rem 1rem;
+    border-width: 2px;
+    border-color: #d4cfc0;
+    background-color: #ffd700;
+    color: #2d2d1f;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.75rem;
+    transition-duration: 100ms;
+    cursor: pointer;
+    box-shadow: 2px 2px 0px rgba(0,0,0,0.15), 4px 4px 0px rgba(0,0,0,0.1);
+  }
+
+  .pixel-btn:hover {
+    transform: translate(-2px, -2px);
+  }
+
+  .pixel-btn:active {
+    transform: translate(2px, 2px);
+    box-shadow: none;
+  }
+
+  .pixel-btn-secondary {
+    padding: 0.5rem 1rem;
+    border-width: 2px;
+    border-color: #d4cfc0;
+    background-color: #ffed4e;
+    color: #2d2d1f;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.75rem;
+    transition-duration: 100ms;
+    cursor: pointer;
+    box-shadow: 2px 2px 0px rgba(0,0,0,0.15), 4px 4px 0px rgba(0,0,0,0.1);
+  }
+
+  .pixel-btn-secondary:hover {
+    transform: translate(-2px, -2px);
+  }
+
+  .pixel-btn-secondary:active {
+    transform: translate(2px, 2px);
+    box-shadow: none;
+  }
+
+  .pixel-card {
+    background-color: #f5f0e0;
+    border-width: 2px;
+    border-color: #d4cfc0;
+    padding: 1rem;
+    box-shadow: 2px 2px 0px rgba(0,0,0,0.15), 4px 4px 0px rgba(0,0,0,0.1);
+  }
+
+  .pixel-container {
+    background-color: #fffef5;
+    color: #2d2d1f;
+    height: 100vh;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+}

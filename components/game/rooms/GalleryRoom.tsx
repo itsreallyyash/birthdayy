@@ -1,0 +1,648 @@
+'use client';
+
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { ImageMetadata } from '@/lib/types';
+import { supabase } from '@/lib/supabase';
+
+// ─── Pixel Sprites ────────────────────────────────────────────────────────────
+// 12 wide × 16 tall, scale × 3 = 36 × 48 px
+//
+// Girl: brown hair, glasses (G=frame g=lens), yellow top, PINK SKIRT
+// Boy:  dark short hair, no glasses, wide black shirt, blue jeans
+
+// Shared body rows 0-11, only legs differ between frames A/B
+const GIRL_BODY: string[] = [
+  '....HHHH....',  // hair top
+  '..HHHHHHHH..',  // hair wide
+  '.HSSSSSSSSH.',  // face + hair sides
+  '.HGgSSGgSSH.',  // glasses (G=frame, g=tinted lens)
+  '.HSSSSSSSSH.',  // face
+  '..SSSSSSSS..',  // chin
+  '.YYYYYYYYYY.',  // yellow top shoulders
+  'YYYYYYYYYYYY',  // yellow top
+  'YYYYYYYYYYYY',  // yellow top
+  '.PPPPPPPPPP.',  // pink skirt
+  'PPPPPPPPPPPP',  // skirt wider
+  'PPPPPPPPPPPP',  // skirt widest
+];
+const GIRL_A: string[] = [
+  ...GIRL_BODY,
+  '...SS....SS.',  // legs apart
+  '..SS.....SS.',
+  '..BB.....BB.',  // shoes
+  '............',
+];
+const GIRL_B: string[] = [
+  ...GIRL_BODY,
+  '..SS.....SS.',  // legs other step
+  '...SS....SS.',
+  '...BB....BB.',  // shoes
+  '............',
+];
+
+const BOY_BODY: string[] = [
+  '....KKKK....',  // short hair top
+  '...KKKKKKK..',  // hair (shorter, less spread than girl)
+  '..KSSSSSSK..',  // face + short hair sides
+  '..KSSSSSSK..',  // face — no glasses
+  '..KSSSSSSK..',  // face
+  '...SSSSSS...',  // chin
+  '.NNNNNNNNNN.',  // black shirt — wide shoulders (wider than face)
+  'NNNNNNNNNNNN',  // shirt
+  'NNNNNNNNNNNN',  // shirt
+  'NNNNNNNNNNNN',  // shirt
+  '..DDDDDDDD..',  // dark jeans
+  '..DDDDDDDD..',  // jeans
+];
+const BOY_A: string[] = [
+  ...BOY_BODY,
+  '..DDD..DDD..',  // legs apart
+  '.DDD...DDD..',
+  '.BBB...BBB..',  // wider shoes
+  '............',
+];
+const BOY_B: string[] = [
+  ...BOY_BODY,
+  '..DDD..DDD..',  // legs other step
+  '..DDD...DDD.',
+  '..BBB...BBB.',  // wider shoes
+  '............',
+];
+
+const GP: Record<string, string> = {
+  H: '#5C3317',  // brown hair
+  S: '#FDBCB4',  // skin
+  G: '#2a2a2a',  // glasses frame
+  g: '#b8d8e8',  // glasses lens (light blue tint)
+  Y: '#FFD700',  // yellow top
+  P: '#e8799a',  // pink skirt
+  B: '#2a1a0e',  // shoes
+};
+const BP: Record<string, string> = {
+  K: '#1a1a1a',  // dark hair
+  S: '#f5cba7',  // warmer skin tone
+  N: '#0d0d0d',  // black shirt
+  D: '#1c2a50',  // dark jeans
+  B: '#2a1a0e',  // shoes
+};
+
+function Sprite({ data, pal, px = 3 }: { data: string[]; pal: Record<string, string>; px?: number }) {
+  const cols = data[0]?.length ?? 8;
+  return (
+    <svg width={cols * px} height={data.length * px} style={{ imageRendering: 'pixelated', display: 'block' }}>
+      {data.flatMap((row, y) =>
+        [...row].map((c, x) => {
+          const fill = pal[c];
+          if (!fill) return null;
+          return <rect key={`${y}-${x}`} x={x * px} y={y * px} width={px} height={px} fill={fill} />;
+        })
+      )}
+    </svg>
+  );
+}
+
+// ─── Map Layout ───────────────────────────────────────────────────────────────
+// 15 cols: TT GG[L]G PPP G[R]GG TT   (path centered)
+// col:      01 234 5 678 9 0 12 34
+const T = 32; // tile px
+const COLS = 15;
+
+type ColKind = 'tree' | 'grass' | 'path' | 'photo_L' | 'photo_R';
+const COL_KINDS: ColKind[] = [
+  'tree','tree','grass','grass','photo_L','grass','path','path','path','grass','photo_R','grass','grass','tree','tree',
+];
+
+// Tile base colors
+function tileColor(kind: ColKind, col: number, row: number): string {
+  const checker = (col + row) % 2;
+  if (kind === 'path') return checker ? '#c4a882' : '#bda07a';
+  if (kind === 'tree')  return checker ? '#4a904a' : '#428242';
+  return ['#68b568','#5fa65f','#62ab62','#5ea55e','#64ad64'][(col * 3 + row * 7) % 5];
+}
+
+type RowSpec =
+  | { photo: false }
+  | { photo: true; img: ImageMetadata; side: 'left' | 'right' };
+
+function buildMap(images: ImageMetadata[]): RowSpec[] {
+  const rows: RowSpec[] = [];
+  for (let i = 0; i < 5; i++) rows.push({ photo: false });
+  images.forEach((img, idx) => {
+    rows.push({ photo: false });
+    rows.push({ photo: false });
+    rows.push({ photo: true, img, side: idx % 2 === 0 ? 'left' : 'right' });
+    rows.push({ photo: false });
+  });
+  for (let i = 0; i < 5; i++) rows.push({ photo: false });
+  return rows;
+}
+
+// Row indices that have photos (for player snap-to positions)
+function photoRows(imgCount: number): number[] {
+  return Array.from({ length: imgCount }, (_, i) => 5 + i * 4 + 2);
+}
+
+// ─── Photo Frame on Map ────────────────────────────────────────────────────────
+function MapPhotoFrame({
+  img, side, active, onClick,
+}: {
+  img: ImageMetadata; side: 'left' | 'right'; active: boolean; onClick: () => void;
+}) {
+  // Frame spans 2 tiles, centered on photo_L col (col 4) or photo_R col (col 10)
+  const centerCol = side === 'left' ? 4 : 10;
+  const left = centerCol * T - 28; // 56px wide frame, offset to center on col
+  const frameW = 64;
+  const frameH = 64;
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        top: T / 2 - frameH / 2,
+        left,
+        width: frameW,
+        height: frameH,
+        cursor: 'pointer',
+        zIndex: 5,
+      }}
+      onClick={onClick}
+    >
+      {/* Wooden outer frame */}
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+          padding: 4,
+          background: active ? '#8b4513' : '#5a2d0c',
+          border: `3px solid ${active ? '#ffd700' : '#3d1a05'}`,
+          boxShadow: active ? '0 0 10px rgba(255,215,0,0.7)' : '2px 2px 4px rgba(0,0,0,0.5)',
+          boxSizing: 'border-box',
+        }}
+      >
+        <img
+          src={img.blob_url}
+          alt={img.filename}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          onError={(e) => { (e.target as HTMLImageElement).style.background = '#222'; (e.target as HTMLImageElement).src = ''; }}
+        />
+      </div>
+      {/* Plaque */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: -16,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: active ? '#c8960c' : '#8b6914',
+          border: '2px solid #5a3d00',
+          padding: '1px 4px',
+          whiteSpace: 'nowrap',
+          fontFamily: "'Press Start 2P', cursive",
+          fontSize: 5,
+          color: '#fff',
+        }}
+      >
+        {active ? '[ ENTER ]' : img.filename.replace(/^\d+-/, '').slice(0, 12)}
+      </div>
+    </div>
+  );
+}
+
+// ─── Tree Decor ────────────────────────────────────────────────────────────────
+function TreeDecor({ col, row }: { col: number; row: number }) {
+  if ((col * 2 + row * 3) % 4 !== 0) return null;
+  return (
+    <>
+      <div style={{ position: 'absolute', bottom: 0, left: '40%', width: '20%', height: '45%', background: '#7a4f1e' }} />
+      <div style={{ position: 'absolute', bottom: '30%', left: '8%', width: '84%', height: '90%', background: '#2d6b38', borderRadius: '50% 50% 35% 35%' }} />
+      <div style={{ position: 'absolute', bottom: '52%', left: '15%', width: '70%', height: '65%', background: '#245530', borderRadius: '50% 50% 35% 35%', opacity: 0.6 }} />
+    </>
+  );
+}
+
+// ─── Grass Tufts ──────────────────────────────────────────────────────────────
+function GrassTuft({ col, row }: { col: number; row: number }) {
+  if ((col * 5 + row * 3) % 7 !== 0) return null;
+  return (
+    <div style={{ position: 'absolute', bottom: 4, left: '30%', display: 'flex', gap: 2 }}>
+      <div style={{ width: 3, height: 8, background: '#3d8f3d', borderRadius: 2, transform: 'rotate(-10deg)' }} />
+      <div style={{ width: 3, height: 10, background: '#4a9f4a', borderRadius: 2 }} />
+      <div style={{ width: 3, height: 7, background: '#3d8f3d', borderRadius: 2, transform: 'rotate(10deg)' }} />
+    </div>
+  );
+}
+
+// ─── Gameboy Mobile Controls ──────────────────────────────────────────────────
+function DpadBtn({ label, style, onPress }: { label: string; style: React.CSSProperties; onPress: () => void }) {
+  return (
+    <button
+      onPointerDown={(e) => { e.preventDefault(); onPress(); }}
+      style={{
+        position: 'absolute',
+        width: 36, height: 36,
+        background: '#1a1a2e',
+        border: '2px solid #333',
+        borderRadius: 4,
+        color: '#aaa',
+        fontSize: 16,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        touchAction: 'none',
+        ...style,
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function GameboyControls({ onUp, onDown, onA, onB, nearPhoto }: {
+  onUp: () => void; onDown: () => void;
+  onA: () => void; onB: () => void;
+  nearPhoto: boolean;
+}) {
+  return (
+    <div className="sm:hidden" style={{ position: 'absolute', bottom: 12, left: 0, right: 0, zIndex: 30, pointerEvents: 'none' }}>
+      {/* D-pad — right side */}
+      <div style={{ position: 'absolute', right: 20, bottom: 0, width: 108, height: 108, pointerEvents: 'all' }}>
+        <DpadBtn label="▲" onPress={onUp} style={{ top: 0, left: 36 }} />
+        <DpadBtn label="▼" onPress={onDown} style={{ bottom: 0, left: 36 }} />
+        {/* center piece */}
+        <div style={{ position: 'absolute', top: 36, left: 36, width: 36, height: 36, background: '#111', border: '2px solid #333', borderRadius: 4 }} />
+      </div>
+
+      {/* A / B buttons — left side */}
+      <div style={{ position: 'absolute', left: 20, bottom: 8, display: 'flex', gap: 10, pointerEvents: 'all' }}>
+        <button
+          onPointerDown={(e) => { e.preventDefault(); onB(); }}
+          style={{
+            width: 44, height: 44,
+            borderRadius: '50%',
+            background: '#3d1a6e',
+            border: '3px solid #6a3aaa',
+            color: '#ccc',
+            fontFamily: "'Press Start 2P', cursive",
+            fontSize: 8,
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
+            touchAction: 'none',
+          }}
+        >
+          B
+        </button>
+        <button
+          onPointerDown={(e) => { e.preventDefault(); onA(); }}
+          style={{
+            width: 44, height: 44,
+            borderRadius: '50%',
+            background: nearPhoto ? '#8b0000' : '#4a0000',
+            border: `3px solid ${nearPhoto ? '#ff4444' : '#880000'}`,
+            color: nearPhoto ? '#fff' : '#888',
+            fontFamily: "'Press Start 2P', cursive",
+            fontSize: 8,
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
+            touchAction: 'none',
+            boxShadow: nearPhoto ? '0 0 8px rgba(255,50,50,0.6)' : 'none',
+          }}
+        >
+          A
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Comments modal types ──────────────────────────────────────────────────────
+interface Comment {
+  id: string;
+  image_id: string;
+  author: string;
+  content: string;
+  created_at: string;
+}
+
+// ─── Main Gallery Component ────────────────────────────────────────────────────
+export function GalleryRoom() {
+  const [images, setImages] = useState<ImageMetadata[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [playerRow, setPlayerRow] = useState(3);
+  const [walkFrame, setWalkFrame] = useState(0);
+  const [openImg, setOpenImg] = useState<ImageMetadata | null>(null);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [newComment, setNewComment] = useState('');
+  const [author, setAuthor] = useState('');
+  const [posting, setPosting] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerH, setContainerH] = useState(400);
+  const commentRef = useRef<HTMLTextAreaElement>(null);
+
+  // Measure container
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    setContainerH(el.clientHeight);
+    const ro = new ResizeObserver(() => setContainerH(el.clientHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Fetch images
+  useEffect(() => {
+    supabase.from('images').select('*').order('sort_order').then(({ data }) => {
+      setImages(data || []);
+      setLoading(false);
+    });
+  }, []);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const rows = useMemo(() => buildMap(images), [images]);
+  const snapRows = useMemo(() => photoRows(images.length), [images.length]);
+
+  // Walk animation tick
+  useEffect(() => {
+    const id = setInterval(() => setWalkFrame((f) => 1 - f), 250);
+    return () => clearInterval(id);
+  }, []);
+
+  // Keyboard nav
+  useEffect(() => {
+    if (openImg) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+        e.preventDefault(); e.stopImmediatePropagation();
+        setPlayerRow((r) => Math.max(0, r - 1));
+      } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
+        e.preventDefault(); e.stopImmediatePropagation();
+        setPlayerRow((r) => Math.min(rows.length - 1, r + 1));
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const sr = snapRows.find((r) => Math.abs(r - playerRow) <= 1);
+        if (sr !== undefined) {
+          const spec = rows[sr];
+          if (spec.photo) openModal(spec.img);
+        }
+      } else if (e.key === 'Escape') {
+        setOpenImg(null);
+      }
+    };
+    window.addEventListener('keydown', onKey, { capture: true });
+    return () => window.removeEventListener('keydown', onKey, { capture: true });
+  }, [openImg, playerRow, rows, snapRows]);
+
+  const openModal = useCallback(async (img: ImageMetadata) => {
+    setOpenImg(img);
+    setComments([]);
+    const { data } = await supabase.from('photo_comments').select('*').eq('image_id', img.id).order('created_at');
+    setComments(data || []);
+    setTimeout(() => commentRef.current?.focus(), 150);
+  }, []);
+
+  const postComment = async () => {
+    if (!newComment.trim() || !openImg) return;
+    setPosting(true);
+    const { data, error } = await supabase
+      .from('photo_comments')
+      .insert({ image_id: openImg.id, author: author.trim() || 'Anonymous', content: newComment.trim() })
+      .select().single();
+    if (!error && data) { setComments((c) => [...c, data]); setNewComment(''); }
+    setPosting(false);
+  };
+
+  if (loading) {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: '#5fa65f', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ fontFamily: "'Press Start 2P', cursive" }} className="text-yellow-900 animate-pulse text-xs">
+          LOADING GALLERY...
+        </div>
+      </div>
+    );
+  }
+
+  if (images.length === 0) {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: '#5fa65f', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="text-center space-y-2">
+          <div style={{ fontFamily: "'Press Start 2P', cursive" }} className="text-yellow-900 text-sm">NO IMAGES YET</div>
+          <p className="text-xs text-yellow-800">Upload from the admin panel</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Map scroll: translate so playerRow stays centered vertically
+  const mapY = containerH / 2 - T / 2 - playerRow * T;
+
+  // Which map row the player is near for photo highlighting
+  const nearPhotoRow = snapRows.find((r: number) => Math.abs(r - playerRow) <= 1);
+
+  // Virtual rendering: only render rows within ±12 of player
+  const RENDER_BUFFER = 12;
+  const firstRow = Math.max(0, playerRow - RENDER_BUFFER);
+  const lastRow = Math.min(rows.length - 1, playerRow + RENDER_BUFFER);
+
+  return (
+    <>
+      <div ref={containerRef} style={{ position: 'absolute', inset: 0, background: '#5fa65f', overflow: 'hidden' }}>
+
+        {/* Scrolling tile map */}
+        <div
+          style={{
+            position: 'absolute',
+            left: '50%',
+            top: 0,
+            width: COLS * T,
+            height: rows.length * T,
+            transform: `translateX(-50%) translateY(${mapY}px)`,
+            transition: 'transform 0.12s linear',
+          }}
+        >
+          {rows.slice(firstRow, lastRow + 1).map((spec: RowSpec, relIdx: number) => {
+            const rowIdx = firstRow + relIdx;
+            return (
+              <div key={rowIdx} style={{ position: 'absolute', top: rowIdx * T, left: 0, width: '100%', height: T, display: 'flex' }}>
+                {/* Base tiles */}
+                {COL_KINDS.map((kind: ColKind, col: number) => (
+                  <div
+                    key={col}
+                    style={{
+                      width: T, height: T,
+                      background: tileColor(kind, col, rowIdx),
+                      position: 'relative',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {kind === 'tree' && <TreeDecor col={col} row={rowIdx} />}
+                    {(kind === 'grass' || kind === 'photo_L' || kind === 'photo_R') && (
+                      <GrassTuft col={col} row={rowIdx} />
+                    )}
+                    {kind === 'path' && col === 6 && (
+                      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 2, background: '#a07840', opacity: 0.5 }} />
+                    )}
+                    {kind === 'path' && col === 8 && (
+                      <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 2, background: '#a07840', opacity: 0.5 }} />
+                    )}
+                  </div>
+                ))}
+
+                {/* Photo frames (row overlay) */}
+                {spec.photo && (
+                  <MapPhotoFrame
+                    img={spec.img}
+                    side={spec.side}
+                    active={nearPhotoRow === rowIdx}
+                    onClick={() => openModal(spec.img)}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Characters — always centered */}
+        <div
+          style={{
+            position: 'absolute',
+            left: '50%',
+            top: '50%',
+            transform: 'translate(-50%, -50%)',
+            display: 'flex',
+            gap: 2,
+            zIndex: 10,
+            filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.4))',
+          }}
+        >
+          <Sprite data={walkFrame === 0 ? GIRL_A : GIRL_B} pal={GP} px={3} />
+          <Sprite data={walkFrame === 0 ? BOY_B : BOY_A} pal={BP} px={3} />
+        </div>
+
+        {/* HUD — hidden on mobile since gameboy controls are shown */}
+        <div
+          className="hidden sm:block"
+          style={{
+            position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)',
+            fontFamily: "'Press Start 2P', cursive",
+            fontSize: 7,
+            background: 'rgba(0,0,0,0.55)',
+            color: '#fff',
+            padding: '4px 10px',
+            borderRadius: 2,
+            whiteSpace: 'nowrap',
+            zIndex: 20,
+          }}
+        >
+          {nearPhotoRow !== undefined ? '↑↓ WALK  •  ENTER TO VIEW' : '↑↓ WALK'}
+        </div>
+
+        {/* Mobile Gameboy Controls */}
+        <GameboyControls
+          onUp={() => setPlayerRow((r) => Math.max(0, r - 1))}
+          onDown={() => setPlayerRow((r) => Math.min(rows.length - 1, r + 1))}
+          onA={() => {
+            const sr = snapRows.find((r: number) => Math.abs(r - playerRow) <= 1);
+            if (sr !== undefined) { const spec: RowSpec = rows[sr]; if (spec.photo) openModal(spec.img); }
+          }}
+          onB={() => setOpenImg(null)}
+          nearPhoto={nearPhotoRow !== undefined}
+        />
+      </div>
+
+      {/* Photo modal */}
+      {openImg && (
+        <div
+          className="absolute inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.8)' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setOpenImg(null); }}
+        >
+          <div
+            className="flex flex-col overflow-hidden"
+            style={{
+              background: '#fffde8',
+              border: '4px solid #8b4513',
+              boxShadow: '0 0 0 2px #ffd700',
+              width: '100%',
+              maxWidth: 560,
+              maxHeight: '88vh',
+            }}
+          >
+            {/* Header */}
+            <div
+              style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '8px 12px',
+                borderBottom: '2px solid #c8960c',
+                background: '#fff8dc',
+                flexShrink: 0,
+              }}
+            >
+              <span style={{ fontFamily: "'Press Start 2P', cursive", fontSize: 8, color: '#5a2d0c', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {openImg.filename.replace(/^\d+-/, '')}
+              </span>
+              <button
+                onClick={() => setOpenImg(null)}
+                className="pixel-btn text-xs"
+                style={{ fontFamily: "'Press Start 2P', cursive", fontSize: 7 }}
+              >
+                CLOSE [ESC]
+              </button>
+            </div>
+
+            {/* Image */}
+            <div style={{ background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <img
+                src={openImg.blob_url}
+                alt={openImg.filename}
+                style={{ maxWidth: '100%', maxHeight: '45vh', objectFit: 'contain', display: 'block' }}
+              />
+            </div>
+
+            {/* Comments */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: 12, minHeight: 0 }}>
+              <div style={{ fontFamily: "'Press Start 2P', cursive", fontSize: 8, color: '#8b4513', marginBottom: 8 }}>
+                COMMENTS ({comments.length})
+              </div>
+              {comments.length === 0 && (
+                <p style={{ fontSize: 11, color: '#999', fontStyle: 'italic' }}>No comments yet — leave the first!</p>
+              )}
+              {comments.map((c) => (
+                <div key={c.id} style={{ background: '#fff8dc', border: '2px solid #e8c96a', borderRadius: 2, padding: '6px 8px', marginBottom: 6 }}>
+                  <div style={{ fontFamily: "'Press Start 2P', cursive", fontSize: 7, color: '#8b4513', marginBottom: 3 }}>{c.author}</div>
+                  <p style={{ fontSize: 12, color: '#333', lineHeight: 1.5 }}>{c.content}</p>
+                </div>
+              ))}
+
+              {/* Post comment */}
+              <div style={{ borderTop: '2px solid #e8c96a', marginTop: 10, paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <input
+                  type="text"
+                  value={author}
+                  onChange={(e) => setAuthor(e.target.value)}
+                  placeholder="Your name (optional)"
+                  style={{ padding: '4px 8px', border: '2px solid #c8a050', fontSize: 8, background: '#fff', fontFamily: "'Press Start 2P', cursive" }}
+                />
+                <textarea
+                  ref={commentRef}
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey) postComment(); }}
+                  placeholder="Leave a comment… (Ctrl+Enter)"
+                  rows={2}
+                  style={{ padding: '4px 8px', border: '2px solid #c8a050', fontSize: 8, background: '#fff', resize: 'none', fontFamily: "'Press Start 2P', cursive" }}
+                />
+                <button
+                  onClick={postComment}
+                  disabled={!newComment.trim() || posting}
+                  className="pixel-btn text-xs"
+                  style={{ fontFamily: "'Press Start 2P', cursive", fontSize: 8, opacity: !newComment.trim() || posting ? 0.5 : 1 }}
+                >
+                  {posting ? 'POSTING…' : 'POST COMMENT'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

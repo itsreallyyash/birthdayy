@@ -1,0 +1,17 @@
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
+import { GameNav } from '@/components/game/GameNav';
+
+export default function AdminLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <ProtectedRoute requireAdmin>
+      <div className="pixel-container">
+        <GameNav />
+        {children}
+      </div>
+    </ProtectedRoute>
+  );
+}
