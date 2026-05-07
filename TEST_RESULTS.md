@@ -6,7 +6,7 @@
 - **Fixed**: Button click handler with async/await pattern
 - **Fixed**: Password validation logic (separated user vs admin auth)
 - **Test**: `password: yellowblue` → Logs in and redirects to /game
-- **Test**: Admin mode with `password123` → Logs in as admin
+- **Test**: Admin mode with `lilbalcony` → Logs in as admin
 
 ### 2. ✅ UI ENHANCEMENTS APPLIED
 - **Yellow & Gold Theme**: Complete light yellow color scheme across all pages
@@ -38,7 +38,7 @@
 
 ### Admin Login:
 1. Click "ADMIN →" button on login page
-2. Enter admin password: `password123` (or env var NEXT_PUBLIC_ADMIN_PASSWORD)
+2. Enter admin password: `lilbalcony` (or env var NEXT_PUBLIC_ADMIN_PASSWORD)
 3. Upload images, music, and transcripts
 4. Content automatically syncs to game rooms via Supabase
 
