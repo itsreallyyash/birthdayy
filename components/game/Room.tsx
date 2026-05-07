@@ -30,6 +30,9 @@ export function Room({
   // Handle keyboard input for player movement
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
       const speed = 1;
       let newPos = { ...playerPos };
 
