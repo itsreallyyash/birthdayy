@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Resend } from 'resend';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request: NextRequest) {
   const { role, timestamp } = await request.json();
@@ -42,20 +45,14 @@ export async function POST(request: NextRequest) {
       </div>
     `;
 
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: 'Memory World <onboarding@resend.dev>',
-      to: 'yashbshah13@gmail.com',
-      subject,
-      html,
-    }),
+  const { data, error } = await resend.emails.send({
+    from: 'onboarding@resend.dev',
+    to: 'yash12628@gmail.com',
+    subject,
+    html,
   });
 
-  if (!res.ok) return NextResponse.json({ error: 'Failed to send' }, { status: 500 });
+  console.log('[notify-login] data:', data, 'error:', error);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
