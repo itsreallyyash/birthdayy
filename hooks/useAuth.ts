@@ -43,21 +43,28 @@ export function useAuth() {
     });
   }, []);
 
+  const notifyLogin = (role: 'admin' | 'visitor') => {
+    const timestamp = new Date().toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+    fetch('/api/notify-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role, timestamp }),
+    }).catch(() => {});
+  };
+
   const login = useCallback((password: string, adminPassword?: string) => {
     // Check admin mode first
     if (adminPassword !== undefined) {
       const isAdminValid = adminPassword === ADMIN_PASSWORD;
       if (isAdminValid) {
-        const session = {
-          timestamp: Date.now(),
-          isAdmin: true,
-        };
+        const session = { timestamp: Date.now(), isAdmin: true };
         localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-        setAuth({
-          isAuthenticated: true,
-          isAdmin: true,
-          isLoading: false,
-        });
+        setAuth({ isAuthenticated: true, isAdmin: true, isLoading: false });
+        notifyLogin('admin');
         return true;
       }
       return false;
@@ -66,16 +73,10 @@ export function useAuth() {
     // Regular user login
     const isValid = password === 'yellowblue';
     if (isValid) {
-      const session = {
-        timestamp: Date.now(),
-        isAdmin: false,
-      };
+      const session = { timestamp: Date.now(), isAdmin: false };
       localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-      setAuth({
-        isAuthenticated: true,
-        isAdmin: false,
-        isLoading: false,
-      });
+      setAuth({ isAuthenticated: true, isAdmin: false, isLoading: false });
+      notifyLogin('visitor');
       return true;
     }
     return false;

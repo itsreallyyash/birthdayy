@@ -417,6 +417,17 @@ interface Comment {
   created_at: string;
 }
 
+function notifyEnd() {
+  const timestamp = new Date().toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short',
+  });
+  fetch('/api/notify-login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role: 'end', timestamp }),
+  }).catch(() => {});
+}
+
 // ─── Main Gallery Component ────────────────────────────────────────────────────
 export function GalleryRoom() {
   const [images, setImages] = useState<ImageMetadata[]>([]);
@@ -472,7 +483,7 @@ export function GalleryRoom() {
       } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
         e.preventDefault(); e.stopImmediatePropagation();
         const next = Math.min(rows.length - 1, playerRow + 1);
-        if (next >= rows.length - 3) { setShowBirthday(true); }
+        if (next >= rows.length - 3) { setShowBirthday(true); notifyEnd(); }
         else { setPlayerRow(next); }
       } else if (e.key === 'Enter') {
         e.preventDefault();
@@ -705,7 +716,7 @@ export function GalleryRoom() {
         {/* D-pad */}
         <div style={{ position: 'relative', width: 108, height: 108 }}>
           <DpadBtn label="▲" onPress={() => setPlayerRow((r) => Math.max(0, r - 1))} style={{ top: 0, left: 36 }} />
-          <DpadBtn label="▼" onPress={() => { const next = Math.min(rows.length - 1, playerRow + 1); if (next >= rows.length - 3) { setShowBirthday(true); } else { setPlayerRow(next); } }} style={{ bottom: 0, left: 36 }} />
+          <DpadBtn label="▼" onPress={() => { const next = Math.min(rows.length - 1, playerRow + 1); if (next >= rows.length - 3) { setShowBirthday(true); notifyEnd(); } else { setPlayerRow(next); } }} style={{ bottom: 0, left: 36 }} />
           <div style={{ position: 'absolute', top: 36, left: 36, width: 36, height: 36, background: '#111', border: '2px solid #333', borderRadius: 4 }} />
         </div>
 
