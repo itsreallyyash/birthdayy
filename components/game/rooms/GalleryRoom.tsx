@@ -417,7 +417,10 @@ interface Comment {
   created_at: string;
 }
 
+let _endNotified = false;
 function notifyEnd() {
+  if (_endNotified) return;
+  _endNotified = true;
   const timestamp = new Date().toLocaleString('en-IN', {
     timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short',
   });

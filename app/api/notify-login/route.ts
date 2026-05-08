@@ -45,14 +45,13 @@ export async function POST(request: NextRequest) {
       </div>
     `;
 
-  const { data, error } = await resend.emails.send({
+  const { error } = await resend.emails.send({
     from: 'onboarding@resend.dev',
     to: 'yash12628@gmail.com',
     subject,
     html,
   });
 
-  console.log('[notify-login] data:', data, 'error:', error);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
