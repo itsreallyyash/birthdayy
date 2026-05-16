@@ -613,6 +613,7 @@ export function GalleryRoom() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerH, setContainerH] = useState(400);
   const commentRef = useRef<HTMLTextAreaElement>(null);
+  const openImgRef = useRef<string | null>(null);
 
   // Measure container
   useEffect(() => {
@@ -670,31 +671,39 @@ export function GalleryRoom() {
   }, [openImg, playerRow, rows, snapRows]);
 
   const openModal = useCallback(async (img: ImageMetadata) => {
+    openImgRef.current = img.id;
     setOpenImg(img);
     setComments([]);
     setCommentError('');
     const { data } = await supabase.from('photo_comments').select('*').eq('image_id', img.id).order('created_at');
-    setComments(data || []);
+    if (openImgRef.current === img.id) setComments(data || []);
     setTimeout(() => commentRef.current?.focus(), 150);
   }, []);
 
   const postComment = async () => {
     if (!newComment.trim() || !openImg) return;
+    const content = newComment.trim();
+    const authorName = author.trim() || 'Anonymous';
+    const optimistic: Comment = {
+      id: `opt-${Date.now()}`,
+      image_id: openImg.id,
+      author: authorName,
+      content,
+      created_at: new Date().toISOString(),
+    };
+    setComments(prev => [...prev, optimistic]);
+    setNewComment('');
     setPosting(true);
     setCommentError('');
     const { error } = await supabase
       .from('photo_comments')
-      .insert({ image_id: openImg.id, author: author.trim() || 'Anonymous', content: newComment.trim() });
-    if (error) {
-      setCommentError(error.message);
-      setPosting(false);
-      return;
-    }
-    // Refetch all comments so we get the real persisted state
-    const { data } = await supabase.from('photo_comments').select('*').eq('image_id', openImg.id).order('created_at');
-    setComments(data || []);
-    setNewComment('');
+      .insert({ image_id: openImg.id, author: authorName, content });
     setPosting(false);
+    if (error) {
+      setComments(prev => prev.filter(c => c.id !== optimistic.id));
+      setNewComment(content);
+      setCommentError(error.message);
+    }
   };
 
   if (loading) {
