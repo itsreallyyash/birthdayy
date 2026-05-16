@@ -150,9 +150,9 @@ function MapPhotoFrame({
 }) {
   // Frame spans 2 tiles, centered on photo_L col (col 4) or photo_R col (col 10)
   const centerCol = side === 'left' ? 4 : 10;
-  const left = centerCol * T - 28; // 56px wide frame, offset to center on col
-  const frameW = 64;
-  const frameH = 64;
+  const frameW = 104;
+  const frameH = 104;
+  const left = centerCol * T - frameW / 2;
 
   return (
     <div
