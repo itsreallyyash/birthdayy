@@ -275,6 +275,32 @@ function DpadBtn({ label, style, onPress }: { label: string; style: React.CSSPro
 
 // ─── Birthday Screen ──────────────────────────────────────────────────────────
 
+const POEM = [
+  'Standing on top of your slope,',
+  'looking at the tippies of my shoes,',
+  'hoping to see you ride up — come to me.',
+  'And there you are, smiling.',
+  'All we could say was hi',
+  'in the softest tone —',
+  'the most endearing moment of us,',
+  'just smiling, looking at each other.',
+  '',
+  'Cameras pointed at us,',
+  'I never wanted to look at them.',
+  'Only you.',
+  'Your will and nature so wonderful.',
+  'Every beer cracked open with you,',
+  'every song heard with you —',
+  'the time we spent is unforgettable,',
+  'and I hope I never let it go.',
+  '',
+  'So much to remember:',
+  'your smile, so wonderful,',
+  'your voice, so soothing,',
+  'your words, so comforting —',
+  'you smell like home.',
+];
+
 const FW_DIRS = [
   [0,-1],[0.71,-0.71],[1,0],[0.71,0.71],[0,1],[-0.71,0.71],[-1,0],[-0.71,-0.71],
 ];
@@ -293,13 +319,24 @@ const BD_MSGS = [
   { text:'★  HAPPY 23RD  ★',          size:16, color:'#00eeff', glow:'#00eeff' },
 ];
 
+
+const GLITTER = Array.from({ length: 80 }, (_, i) => ({
+  x: (i * 13.7) % 100,
+  size: 2 + (i * 1.4) % 5,
+  dur: 5 + (i * 0.65) % 5,
+  del: -((i * 0.22) % 10),
+  color: ['#ffd700','#ffffff','#ffb6c1','#d4b8ff','#b8f0ff','#fffacd','#ffc0cb','#e0ffb8'][(i * 3) % 8],
+}));
+
 function BirthdayScreen({ onRestart }: { onRestart: () => void }) {
-  const [phase, setPhase]         = useState<'loading'|'fireworks'|'message'>('loading');
-  const [msgLine, setMsgLine]     = useState(-1);
-  const [keepGoing, setKeepGoing] = useState(false);
+  const [phase, setPhase]           = useState<'loading'|'fireworks'|'message'>('loading');
+  const [msgLine, setMsgLine]       = useState(-1);
+  const [showScroll, setShowScroll] = useState(false);
+  const [showButtons, setShowButtons] = useState(false);
+  const [keepGoing, setKeepGoing]   = useState(false);
 
   useEffect(() => {
-    const t1 = setTimeout(() => setPhase('fireworks'),               1000);
+    const t1 = setTimeout(() => setPhase('fireworks'), 1000);
     const t2 = setTimeout(() => { setPhase('message'); setMsgLine(0); }, 3600);
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, []);
@@ -310,9 +347,17 @@ function BirthdayScreen({ onRestart }: { onRestart: () => void }) {
     return () => clearTimeout(t);
   }, [msgLine]);
 
+  useEffect(() => {
+    if (msgLine !== BD_MSGS.length) return;
+    const t1 = setTimeout(() => setShowScroll(true), 900);
+    const t2 = setTimeout(() => setShowButtons(true), 2200);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [msgLine]);
+
   return (
     <div style={{ position:'fixed', inset:0, zIndex:9999, background:'#000',
-      display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', overflow:'hidden' }}>
+      display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+      overflow:'auto', padding:'16px 0' }}>
       <style>{`
         @keyframes fw-p {
           0%   { transform:translate(0,0) scale(1.5); opacity:1; }
@@ -331,6 +376,21 @@ function BirthdayScreen({ onRestart }: { onRestart: () => void }) {
         }
         @keyframes bd-blink { 0%,100%{opacity:1} 50%{opacity:0.1} }
         @keyframes bd-pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.07)} }
+        @keyframes scroll-pop {
+          0%   { transform:scale(0.04) translateY(30px); opacity:0; }
+          65%  { transform:scale(1.04) translateY(-4px); opacity:1; }
+          100% { transform:scale(1)    translateY(0);    opacity:1; }
+        }
+@keyframes glitter-fall {
+          0%   { transform:translateY(-10px) rotate(0deg) scale(0.4); opacity:0; }
+          8%   { opacity:1; }
+          90%  { opacity:0.8; }
+          100% { transform:translateY(102vh) rotate(600deg) scale(1.3); opacity:0; }
+        }
+        @keyframes garden-in {
+          from { opacity:0; }
+          to   { opacity:1; }
+        }
       `}</style>
 
       {/* Loading dots */}
@@ -345,7 +405,7 @@ function BirthdayScreen({ onRestart }: { onRestart: () => void }) {
 
       {/* Fireworks */}
       {phase !== 'loading' && FW_BURSTS.map((b, bi) => (
-        <div key={bi} style={{ position:'absolute', left:`${b.x}%`, top:`${b.y}%`, transform:'translate(-50%,-50%)' }}>
+        <div key={bi} style={{ position:'fixed', left:`${b.x}%`, top:`${b.y}%`, transform:'translate(-50%,-50%)' }}>
           {FW_DIRS.map(([dx,dy], i) => {
             const dist = 52 + (i % 3) * 20;
             return (
@@ -362,9 +422,43 @@ function BirthdayScreen({ onRestart }: { onRestart: () => void }) {
         </div>
       ))}
 
-      {/* Birthday message */}
-      <div style={{ position:'relative', zIndex:10, textAlign:'center', padding:'0 24px', maxWidth:520 }}>
-        {BD_MSGS.slice(0, Math.max(msgLine, 0)).map((m, i) => (
+      {/* Garden — fades in when book appears */}
+      {showScroll && (
+        <>
+          {/* balc photo fills screen */}
+          <div style={{
+            position:'fixed', inset:0, zIndex:1, pointerEvents:'none',
+            backgroundImage:"url('/balc.png')",
+            backgroundSize:'cover', backgroundPosition:'center',
+            animation:'garden-in 1.4s ease-out forwards',
+          }} />
+          {/* dreamy warm overlay */}
+          <div style={{
+            position:'fixed', inset:0, zIndex:2, pointerEvents:'none',
+            background:'radial-gradient(ellipse at 50% 40%, rgba(255,230,160,0.18) 0%, rgba(180,100,220,0.12) 55%, rgba(0,0,0,0.45) 100%)',
+          }} />
+
+          {/* Glitter */}
+          {GLITTER.map((g, i) => (
+            <div key={`gl-${i}`} style={{
+              position:'fixed', zIndex:3, pointerEvents:'none',
+              left:`${g.x}%`, top:0,
+              width:g.size, height:g.size,
+              borderRadius:'50%',
+              background:g.color,
+              boxShadow:`0 0 ${g.size * 2}px ${g.color}, 0 0 ${g.size}px #fff`,
+              animation:`glitter-fall ${g.dur}s linear ${g.del}s infinite`,
+            }} />
+          ))}
+        </>
+      )}
+
+      {/* Content */}
+      <div style={{ position:'relative', zIndex:10, textAlign:'center', padding:'0 20px',
+        maxWidth:440, width:'100%', display:'flex', flexDirection:'column', alignItems:'center' }}>
+
+        {/* Messages — hidden once scroll appears */}
+        {!showScroll && BD_MSGS.slice(0, Math.max(msgLine, 0)).map((m, i) => (
           <div key={i} style={{ fontFamily:"'Press Start 2P',cursive", fontSize:m.size, color:m.color,
             marginBottom:18, lineHeight:1.6, animation:'bd-in 0.6s ease-out forwards',
             textShadow:`0 0 20px ${m.glow}, 0 0 6px ${m.glow}` }}>
@@ -372,9 +466,81 @@ function BirthdayScreen({ onRestart }: { onRestart: () => void }) {
           </div>
         ))}
 
-        {msgLine >= BD_MSGS.length && (
+        {/* Minecraft book */}
+        {showScroll && (
+          <div style={{ width:'100%', maxWidth:400, animation:'scroll-pop 0.7s cubic-bezier(0.34,1.56,0.64,1) forwards' }}>
+            {/* Wooden outer frame */}
+            <div style={{
+              background: '#5c2e00',
+              border: '4px solid #2a1000',
+              padding: 6,
+              boxShadow: 'inset 0 0 0 2px #8b5030, 0 8px 28px rgba(0,0,0,0.75), 0 0 0 1px #1a0800',
+            }}>
+              {/* Page interior */}
+              <div style={{
+                background: '#f5efd5',
+                backgroundImage: 'linear-gradient(to right, rgba(0,0,0,0.04) 0%, transparent 6%, transparent 94%, rgba(0,0,0,0.04) 100%)',
+                border: '2px solid #b88040',
+                padding: '18px 20px 22px',
+                maxHeight: '52vh',
+                overflowY: 'auto',
+                position: 'relative',
+                textAlign: 'left',
+              }}>
+                {/* Corner ornaments */}
+                {(['tl','tr','bl','br'] as const).map(c => (
+                  <div key={c} style={{
+                    position:'absolute',
+                    top:    c.startsWith('t') ? 5 : undefined,
+                    bottom: c.startsWith('b') ? 5 : undefined,
+                    left:   c.endsWith('l')   ? 5 : undefined,
+                    right:  c.endsWith('r')   ? 5 : undefined,
+                    width:14, height:14,
+                    borderTop:    c.startsWith('t') ? '2px solid #8b5c2a' : undefined,
+                    borderBottom: c.startsWith('b') ? '2px solid #8b5c2a' : undefined,
+                    borderLeft:   c.endsWith('l')   ? '2px solid #8b5c2a' : undefined,
+                    borderRight:  c.endsWith('r')   ? '2px solid #8b5c2a' : undefined,
+                  }} />
+                ))}
+
+                {/* Lost & found header */}
+                <div style={{
+                  opacity: 0.38,
+                  fontFamily:"'Press Start 2P', cursive",
+                  fontSize: 5,
+                  color: '#2a1000',
+                  lineHeight: 2.3,
+                  marginBottom: 14,
+                  paddingBottom: 10,
+                  borderBottom: '1px dashed rgba(92,45,0,0.4)',
+                }}>
+                  Incase of loss, please return to:<br />
+                  {'YASH <3'}<br />
+                  <span style={{ letterSpacing: 2 }}>8104432328</span><br />
+                  <br />
+                  As a reward $: 5 Beers (rosee)
+                </div>
+
+                {/* Poem */}
+                <div style={{
+                  fontFamily:"'Press Start 2P', cursive",
+                  fontSize: 7,
+                  color: '#1a0800',
+                  lineHeight: 2.4,
+                  whiteSpace: 'pre-line',
+                }}>
+                  {POEM.join('\n')}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Buttons */}
+        {showButtons && (
           <>
-            <div style={{ display:'flex', gap:14, justifyContent:'center', flexWrap:'wrap', marginTop:28, animation:'bd-in 0.5s ease-out forwards' }}>
+            <div style={{ display:'flex', gap:14, justifyContent:'center', flexWrap:'wrap',
+              marginTop:22, animation:'bd-in 0.5s ease-out forwards' }}>
               <button onClick={onRestart} style={{
                 fontFamily:"'Press Start 2P',cursive", fontSize:9, padding:'10px 18px',
                 background:'#ffd700', border:'3px solid #8b6914', color:'#2d1a00',
@@ -387,7 +553,7 @@ function BirthdayScreen({ onRestart }: { onRestart: () => void }) {
             </div>
 
             {keepGoing && (
-              <div style={{ marginTop:20, background:'rgba(255,215,0,0.06)', border:'2px solid #ffd700',
+              <div style={{ marginTop:16, background:'rgba(255,215,0,0.06)', border:'2px solid #ffd700',
                 padding:'16px 18px', animation:'bd-in 0.4s ease-out forwards' }}>
                 <div style={{ fontFamily:"'Press Start 2P',cursive", fontSize:7, color:'#ffd700', marginBottom:10, lineHeight:2 }}>
                   WANT MORE MEMORIES?
@@ -397,7 +563,7 @@ function BirthdayScreen({ onRestart }: { onRestart: () => void }) {
                   <span style={{ color:'#ffd700' }}>{process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'lilbalcony'}</span>
                 </div>
                 <div style={{ fontFamily:"'Press Start 2P',cursive", fontSize:6, color:'#666', lineHeight:2 }}>
-                  upload <br />photos to extend the journey! 
+                  upload photos to extend the journey!
                 </div>
               </div>
             )}
